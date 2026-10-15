@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tug of War Livestream Sim Dashboard</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #121212;
+            color: #ffffff;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+        }
+        h1 { color: #f1f1f1; margin-bottom: 10px; }
+        .game-status {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 15px;
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            display: inline-block;
+        }
+        .rope-container {
+            width: 80%;
+            background: #333;
+            height: 30px;
+            margin: 20px auto;
+            border-radius: 15px;
+            position: relative;
+            overflow: hidden;
+        }
+        .rope-center {
+            position: absolute;
+            left: 50%;
+            width: 4px;
+            height: 100%;
+            background: #fff;
+            transform: translateX(-50%);
+            z-index: 2;
+        }
+        .rope-marker {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 20px;
+            background: #ffcc00;
+            border-radius: 50%;
+            transition: left 0.2s ease-out;
+            transform: translateX(-50%);
+            z-index: 3;
+        }
+        .teams-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        .team-card {
+            padding: 20px;
+            border-radius: 10px;
+        }
+        .blue-team { background-color: #1a365d; border: 2px solid #2b6cb0; }
+        .red-team { background-color: #6b46c1; border: 2px solid #805ad5; } /* Purple/Red alternative */
+        .roster-list {
+            text-align: left;
+            list-style: none;
+            padding: 0;
+        }
+        .roster-list li {
+            padding: 5px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .crown-winner {
+            color: #ffd700;
+            font-weight: bold;
+            margin-top: 20px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tug of War Livestream Sim</h1>
+    
+    <div class="game-status" id="game-status-box">
+        Round: <span id="round-num">-</span> | 
+        Time Left: <span id="time-left">-</span>s | 
+        Rope Value: <span id="rope-val">-</span>
+    </div>
+
+    <div class="rope-container">
+        <div class="rope-center"></div>
+        <div id="rope-marker" class="rope-marker" style="left: 50%;"></div>
+    </div>
+
+    <div id="winner-banner" style="font-size: 32px; color: #ff007f; font-weight: bold; min-height: 40px;"></div>
+
+    <div id="crown-display" class="crown-winner">👑 Top Gifter (Crown): None</div>
+
+    <div class="teams-grid">
+        <div class="team-card blue-team">
+            <h2>Blue Team (Strength: <span id="blue-strength">0</span>)</h2>
+            <ul id="blue-roster" class="roster-list"></ul>
+        </div>
+        <div class="team-card red-team">
+            <h2>Red Team (Strength: <span id="red-strength">0</span>)</h2>
+            <ul id="red-roster" class="roster-list"></ul>
+        </div>
+    </div>
+
+    <script>
+        function updateStats() {
+            fetch('/data')
+                .then(response => response.json())
+                .then(data => {
+                    const state = data.state;
+                    
+                    // Update main status headers
+                    document.getElementById('round-num').innerText = state.round_number;
+                    document.getElementById('time-left').innerText = state.time_left;
+                    document.getElementById('rope-val').innerText = state.rope;
+                    document.getElementById('blue-strength').innerText = state.blue_strength;
+                    document.getElementById('red-strength').innerText = state.red_strength;
+
+                    // Calculate visual rope slider percentage (-100 to +100 mapped onto 0% to 100%)
+                    // ROPE_LIMIT is 100, so adding 100 and dividing by 2 gives a nice 0-100% position
+                    let leftPercentage = 50 + (state.rope / 2);
+                    if(leftPercentage < 0) leftPercentage = 0;
+                    if(leftPercentage > 100) leftPercentage = 100;
+                    document.getElementById('rope-marker').style.left = leftPercentage + '%';
+
+                    // Update Winner Info
+                    if(state.winner) {
+                        document.getElementById('winner-banner').innerText = `WINNER: ${state.winner.toUpperCase()} TEAM!`;
+                    } else {
+                        document.getElementById('winner-banner').innerText = "";
+                    }
+
+                    // Display top crown winner (first index of top_players array if exists)
+                    if(state.top_players && state.top_players.length > 0) {
+                        const topPlayer = state.top_players[0]; // [name, team, coins]
+                        document.getElementById('crown-display').innerText = `👑 Top Gifter (Crown): ${topPlayer[0]} (${topPlayer[2]} coins)`;
+                    } else {
+                        document.getElementById('crown-display').innerText = "👑 Top Gifter (Crown): None";
+                    }
+
+                    // Render Blue Roster
+                    let blueHTML = "";
+                    state.blue_roster_roblox.forEach(p => {
+                        blueHTML += `<li>👤 ${p[0]} - 💪 Coins: ${p[2]}</li>`;
+                    });
+                    document.getElementById('blue-roster').innerHTML = blueHTML;
+
+                    // Render Red Roster
+                    let redHTML = "";
+                    state.red_roster_roblox.forEach(p => {
+                        redHTML += `<li>👤 ${p[0]} - 💪 Coins: ${p[2]}</li>`;
+                    });
+                    document.getElementById('red-roster').innerHTML = redHTML;
+                })
+                .catch(err => console.error("Error fetching data:", err)); 
+        } 
+
+        setInterval(updateStats, 500);
+        updateStats();
+    </script>
+</body>
+</html>
